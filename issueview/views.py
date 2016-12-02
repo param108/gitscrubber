@@ -1,10 +1,11 @@
 from django.shortcuts import render
 from django.http import HttpResponse,HttpResponseRedirect,JsonResponse,HttpResponseNotFound
-from models import Issue
+from models import Issue,Repository
 from django.utils.cache import add_never_cache_headers
 import requests
 from django.contrib.auth.decorators import login_required
 from wobeissues import settings
+from forms import Repoform
 
 GITHUB_USER = settings.GITHUB_USER
 GITHUB_PASSWORD = settings.GITHUB_PASSWORD
@@ -172,3 +173,38 @@ def issues_show(request):
                                                     "filtstring":str(filt) })
     add_never_cache_headers(ret)
     return ret
+
+@login_required(login_url=('/login/'))
+def issues_repos(request):
+  if request.method == "GET":
+    repos = Repository.objects.filter(user = request.user)
+    form = Repoform()
+    ret = render(request,"issueview/repos.html",{"form": form,
+                                                 "repos": repos})
+    add_never_cache_headers(ret)
+    return ret
+  form = Repoform(request.POST)
+  if form.is_valid():
+    newrepo = Repository()
+    newrepo.repository = form.cleaned_data["repository"]
+    newrepo.user = request.user
+    newrepo.save()
+    form = Repoform()
+  repos = Repository.objects.filter(user = request.user)
+  ret = render(request,"issueview/repos.html",{"form": form,
+                                               "repos": repos})
+  add_never_cache_headers(ret)
+  return ret 
+
+@login_required(login_url=('/login/'))
+def issues_repo_delete(request, repoid):
+  repo = Repository.objects.filter(user=request.user).filter(pk=repoid)
+  if len(repo) == 0:
+    ret = HttpResponseRedirect('/issueview/repos/')
+    add_never_cache_headers(ret)
+    return ret 
+  repo[0].delete()
+  ret = HttpResponseRedirect('/issueview/repos/')
+  add_never_cache_headers(ret)
+  return ret 
+ 

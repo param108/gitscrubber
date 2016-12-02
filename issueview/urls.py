@@ -19,4 +19,6 @@ urlpatterns = [
     url(r'^refresh/', views.issues_refresh),
     url(r'^update/(?P<issueid>[0-9]+)/', views.issues_update),
     url(r'^$', views.issues_show),
+    url(r'^repos/$', views.issues_repos),
+    url(r'^repos/delete/(?P<repoid>[0-9]+)/$', views.issues_repo_delete)
 ]

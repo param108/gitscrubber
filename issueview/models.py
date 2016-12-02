@@ -18,5 +18,5 @@ class Issue(models.Model):
   user = models.ForeignKey(User)
 
 class Repository(models.Model):
-  repository = models.CharField(max_length=100)
+  repository = models.CharField(max_length=100,unique=True)
   user = models.ForeignKey(User)
