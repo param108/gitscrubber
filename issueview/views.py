@@ -3,6 +3,7 @@ from django.http import HttpResponse,HttpResponseRedirect,JsonResponse,HttpRespo
 from models import Issue
 from django.utils.cache import add_never_cache_headers
 import requests
+from django.contrib.auth.decorators import login_required
 from wobeissues import settings
 
 GITHUB_USER = settings.GITHUB_USER
@@ -48,11 +49,12 @@ def pull_issues(REPO):
         break
   return issues
 
-def create_new(issue):
+def create_new(issue, user):
   saved = Issue()
+  saved.user = user
   saved.repository = issue['repository']
   saved.issueid = str(issue['number'])
-  saved.title = issue['title'].encode('utf-8')
+  saved.title = str(issue['title'].encode('utf-8'))
   saved.url = "https://github.com/"+issue['repository']+"/issues/"+str(issue['number'])
   saved.created = issue['created_at'].split("T")[0]
   saved.updated = issue['updated_at'].split("T")[0]
@@ -63,11 +65,11 @@ def create_new(issue):
     saved.assigned = issue['assignee']['login']
   saved.status = issue['state']
   saved.changed = False
-  saved.release = "None"
+  saved.release = "New"
   saved.comments = "None"
   saved.save()
    
-def copy_existing(saved,issue):
+def copy_existing(saved,issue,user):
   saved.changed = False
   if saved.repository != issue['repository']:
     saved.changed = True
@@ -75,9 +77,9 @@ def copy_existing(saved,issue):
   if saved.issueid != str(issue['number']):
     saved.changed = True
     saved.issueid = str(issue['number'])
-  if saved.title != issue['title'].encode('utf-8'):
+  if saved.title != str(issue['title'].encode('utf-8')):
     saved.changed = True
-    saved.title = issue['title'].encode('utf-8')
+    saved.title = str(issue['title'].encode('utf-8'))
   if saved.url != "https://github.com/"+issue['repository']+"/issues/"+str(issue['number']):
     saved.changed = True
     saved.url = issue['url']
@@ -99,29 +101,44 @@ def copy_existing(saved,issue):
   saved.save()
 
 # Create your views here.
+@login_required(login_url=('/login/'))
 def issues_refresh(request):
+  filt = request.GET.get("filter","")
   issues=[]
   for i in REPOS:
     issues.extend(pull_issues(COMPANY+i))
   for issue in issues:
     try:
-      saved_issue = Issue.objects.get(issueid = str(issue['number']))
-      copy_existing(saved_issue, issue)
+      saved_issue = Issue.objects.filter(user=request.user).filter(issueid = str(issue['number']))      
+      copy_existing(saved_issue[0], issue, request.user)
     except:
-      create_new(issue)
-  ret  = HttpResponseRedirect("/issueview/")
+      create_new(issue, request.user)
+  filtstring=""
+  if len(filt) > 0:
+    filtstring="?filter="+filt
+  ret  = HttpResponseRedirect("/issueview/"+filtstring)
   add_never_cache_headers(ret)
   return ret
 
+@login_required(login_url=('/login/'))
 def issues_update(request,issueid):
   if request.method == "POST":
     print issueid
     issue = Issue.objects.get(pk=issueid)
+    if issue.user != request.user:
+      ret = HttpResponseRedirect("/issueview/")
     release = request.POST.get('release') 
     comments = request.POST.get('comments')
     issue.release = release
     issue.comments = comments
     issue.save()
+    filt = request.POST.get("filter","")
+    filtstring=""
+    if len(filt) > 0:
+      filtstring="?filter="+filt
+    ret = HttpResponseRedirect("/issueview/"+filtstring)
+    add_never_cache_headers(ret)
+    return ret
   ret = HttpResponseRedirect("/issueview/")
   add_never_cache_headers(ret)
   return ret
@@ -140,14 +157,18 @@ def apply_filter(issues, filt):
       issues= issues.filter(assigned=fv)
     elif fname == 'status':
       issues= issues.filter(status=fv)
+    elif fname == 'repository':
+      issues= issues.filter(repository=fv)
   return issues
 
+@login_required(login_url=('/login/'))
 def issues_show(request):
   if request.method == "GET":
     filt = request.GET.get("filter","")
-    issue_list = Issue.objects.all()
+    issue_list = Issue.objects.filter(user=request.user)
     if filt != "":
       issue_list = apply_filter(issue_list, str(filt))
-    ret =  render(request, "issueview/list.html", { "issues":issue_list })
+    ret =  render(request, "issueview/list.html", { "issues":issue_list,
+                                                    "filtstring":str(filt) })
     add_never_cache_headers(ret)
     return ret
