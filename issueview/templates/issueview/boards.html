@@ -14,9 +14,13 @@
 </tr>
 {% for board in boards %}
 <tr>
-<td><a class="link" href="/issueview/show/{{board.board}}/">{{board.board}}</a></td><td><a class="btn btn-info" href="/issueview/board/edit/{{board.id}}/">Edit</a> <a class="btn btn-danger" href="/issueview/board/del/{{board.id}}/">Delete</a></td>
+<td><a class="link" href="/issueview/show/{{board.user.username}}/{{board.board}}/">{{board.board}}</a></td><td><a class="btn btn-info" href="/issueview/board/edit/{{board.id}}/">Edit</a> <a class="btn btn-danger" href="/issueview/board/del/{{board.id}}/">Delete</a></td>
 </tr>
 {% endfor %}
 </table>
+<h2>Other Boards You Are Part Of</h2>
+{% for board in shared %}
+<a class="link" href="/issueview/show/{{board.board.user.username}}/{{board.board.board}}/">{{board.board.user.username}}/{{board.board.board}}</a><br>
+{% endfor %}
 </div>
 {% endblock %}

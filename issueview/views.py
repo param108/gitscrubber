@@ -1,11 +1,11 @@
 from django.shortcuts import render
 from django.http import HttpResponse,HttpResponseRedirect,JsonResponse,HttpResponseNotFound
-from models import Issue,Repository,Board
+from models import Issue,Repository,Board,ReadPermissions
 from django.utils.cache import add_never_cache_headers
 import requests
 from django.contrib.auth.decorators import login_required
 from wobeissues import settings
-from forms import Repoform,Boardform
+from forms import Repoform,Boardform,Userform
 import re
 
 GITHUB_USER = settings.GITHUB_USER
@@ -51,9 +51,9 @@ def pull_issues(REPO):
         break
   return issues
 
-def create_new(issue, user):
+def create_new(board, issue, user):
   saved = Issue()
-  saved.user = user
+  saved.board = board
   saved.repository = issue['repository']
   saved.issueid = str(issue['number'])
   saved.title = str(issue['title'].encode('utf-8'))
@@ -104,31 +104,42 @@ def copy_existing(saved,issue,user):
 
 # Create your views here.
 @login_required(login_url=('/login/'))
-def issues_refresh(request):
+def issues_refresh(request,boardid):
+  boards = Board.objects.filter(pk=boardid)
   filt = request.GET.get("filter","")
+  if len(boards) == 0:
+    ret  = HttpResponseRedirect("/issueview/board/show/")
+    add_never_cache_headers(ret)
+    return ret
+  if boards[0].user != request.user and len(ReadPermissions.objects.filter(username=request.user.username).filter(board_id = boardid)) == 0:
+    ret  = HttpResponseRedirect("/issueview/board/show/")
+    add_never_cache_headers(ret)
+    return ret
+  REPOS=[x.repository for x in Repository.objects.filter(board=boards[0])]
   issues=[]
   for i in REPOS:
-    issues.extend(pull_issues(COMPANY+i))
+    issues.extend(pull_issues(i))
   for issue in issues:
     try:
-      saved_issue = Issue.objects.filter(user=request.user).filter(issueid = str(issue['number']))      
+      saved_issue = Issue.objects.filter(board=boards[0]).filter(issueid = str(issue['number'])).filter(repository=str(issue['repository']))      
       copy_existing(saved_issue[0], issue, request.user)
     except:
-      create_new(issue, request.user)
+      create_new(boards[0], issue, request.user)
   filtstring=""
   if len(filt) > 0:
     filtstring="?filter="+filt
-  ret  = HttpResponseRedirect("/issueview/"+filtstring)
+  ret  = HttpResponseRedirect("/issueview/show/"+boards[0].user.username+"/"+boards[0].board+"/"+filtstring)
   add_never_cache_headers(ret)
   return ret
 
 @login_required(login_url=('/login/'))
 def issues_update(request,issueid):
   if request.method == "POST":
-    print issueid
     issue = Issue.objects.get(pk=issueid)
-    if issue.user != request.user:
-      ret = HttpResponseRedirect("/issueview/")
+    if issue.user != request.user and len(ReadPermissions.objects.filter(username=request.user.username).filter(board = issue.board)) == 0:
+      ret  = HttpResponseRedirect("/issueview/board/show/")
+      add_never_cache_headers(ret)
+      return ret
     release = request.POST.get('release') 
     comments = request.POST.get('comments')
     issue.release = release
@@ -138,10 +149,10 @@ def issues_update(request,issueid):
     filtstring=""
     if len(filt) > 0:
       filtstring="?filter="+filt
-    ret = HttpResponseRedirect("/issueview/"+filtstring)
+    ret = HttpResponseRedirect("/issueview/show/"+issue.board.user.username+"/"+issue.board.board+"/"+filtstring)
     add_never_cache_headers(ret)
     return ret
-  ret = HttpResponseRedirect("/issueview/")
+  ret = HttpResponseRedirect("/issueview/board/show/")
   add_never_cache_headers(ret)
   return ret
 
@@ -164,22 +175,37 @@ def apply_filter(issues, filt):
   return issues
 
 @login_required(login_url=('/login/'))
-def issues_show(request, board):
+def issues_show(request, owner, board):
   if request.method == "GET":
-    boards = Board.objects.filter(board=board).filter(user=request.user)
+    boards = Board.objects.filter(board=board).filter(user__username=owner)
     if len(boards) == 0:
       ret = HttpResponseRedirect('/issueview/board/show/')
       add_never_cache_headers(ret)
       return ret 
+    
+    if boards[0].user != request.user and len(ReadPermissions.objects.filter(username=request.user.username).filter(board = boards[0])) == 0:
+      ret  = HttpResponseRedirect("/issueview/board/show/")
+      add_never_cache_headers(ret)
+      return ret
+
+    is_self = True
+
+    if boards[0].user != request.user:
+      is_self = False
+
     repos = Repository.objects.filter(board__board=board).filter(board__user=request.user)
     filt = request.GET.get("filter","")
     issue_list = Issue.objects.filter(board__board=board)
+    users = ReadPermissions.objects.filter(board=boards[0])
     if filt != "":
       issue_list = apply_filter(issue_list, str(filt))
-    ret =  render(request, "issueview/list.html", { "issues":issue_list,
+    ret =  render(request, "issueview/list.html", { "userform": Userform(), 
+                                                    "issues":issue_list,
                                                     "filtstring":str(filt),
+                                                    "users" : users,
                                                     "repos": repos,
-                                                    "board": boards[0]})
+                                                    "board": boards[0],
+                                                    "isself": is_self})
     add_never_cache_headers(ret)
     return ret
 
@@ -250,8 +276,10 @@ def show_board(request):
   if request.method == "GET":
     boards = Board.objects.filter(user = request.user)
     form = Boardform()
+    shared = ReadPermissions.objects.filter(username=request.user.username)
     ret = render(request,"issueview/boards.html",{"form": form,
-                                                 "boards": boards})
+                                                 "boards": boards,
+                                                 "shared": shared})
     add_never_cache_headers(ret)
     return ret
   form = Boardform(request.POST)
@@ -265,8 +293,10 @@ def show_board(request):
     else:
       form.add_error(None,"board names should be unique and should only use small case digits, alphabet and underscore.")
   boards = Board.objects.filter(user = request.user)
+  shared = ReadPermissions.objects.filter(username=request.user.username)
   ret = render(request,"issueview/boards.html",{"form": form,
-                                               "boards": boards})
+                                               "boards": boards,
+                                               "shared": shared})
   add_never_cache_headers(ret)
   return ret 
 
@@ -312,4 +342,41 @@ def edit_board(request, boardid):
   add_never_cache_headers(ret)
   return ret 
 
+@login_required(login_url=('/login/'))
+def user_add(request, boardid):
+  if request.method == "POST":
+    filtstring = request.POST.get("filter","")
+    boards = Board.objects.filter(pk=boardid)
+    if boards[0].user != request.user and len(ReadPermissions.objects.filter(username=request.user.username).filter(board_id = boardid)) == 0:
+      ret = HttpResponseRedirect('/issueview/board/show/')
+      add_never_cache_headers(ret)
+      return ret 
+    userform = Userform(request.POST)
+    if userform.is_valid():
+      print "Valid:" + userform.cleaned_data["username"]
+      newuser = ReadPermissions()
+      newuser.board = boards[0]
+      newuser.username = userform.cleaned_data["username"]
+      newuser.save()
+    if len(filtstring) > 0:
+      filtstring = "?filter="+filtstring
+    ret  = HttpResponseRedirect("/issueview/show/"+boards[0].user.username+"/"+boards[0].board+"/"+filtstring)
+    add_never_cache_headers(ret)
+    return ret
 
+@login_required(login_url=('/login/'))
+def user_del(request, boardid, userid):
+  filtstring = request.GET.get("filter","")
+  boards = Board.objects.filter(pk=boardid)
+  if boards[0].user != request.user and len(ReadPermissions.objects.filter(username=request.user.username).filter(board_id = boardid)) == 0:
+      ret = HttpResponseRedirect('/issueview/board/show/')
+      add_never_cache_headers(ret)
+      return ret 
+  readperm = ReadPermissions.objects.filter(pk=userid)
+  if readperm[0].board == boards[0]:
+    readperm[0].delete()
+  if len(filtstring) > 0:
+    filtstring = "?filter="+filtstring
+  ret  = HttpResponseRedirect("/issueview/show/"+boards[0].user.username+"/"+boards[0].board+"/"+filtstring)
+  add_never_cache_headers(ret)
+  return ret

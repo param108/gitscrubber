@@ -27,7 +27,7 @@ class Repository(models.Model):
 
 class ReadPermissions(models.Model):
   board = models.ForeignKey(Board)
-  user = models.ForeignKey(User) 
+  username = models.CharField(max_length=50)
 
 class WritePermissions(models.Model):
   board = models.ForeignKey(Board)
