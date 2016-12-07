@@ -192,14 +192,17 @@ def issues_repos(request, board):
     return ret 
 
   if request.method == "GET":
+    filtstring=request.GET.get("filter","")
     repos = Repository.objects.filter(board__user = request.user).filter(board__board=board)
     form = Repoform()
     ret = render(request,"issueview/repos.html",{"board": boards[0],
                                                  "form": form,
-                                                 "repos": repos})
+                                                 "repos": repos,
+                                                 "filtstring": filtstring})
     add_never_cache_headers(ret)
     return ret
   form = Repoform(request.POST)
+  filtstring = request.POST.get("filter","")
   if form.is_valid():
     newrepo = Repository()
     newrepo.repository = form.cleaned_data["repository"]
@@ -209,7 +212,8 @@ def issues_repos(request, board):
   repos = Repository.objects.filter(board__user = request.user)
   ret = render(request,"issueview/repos.html",{"board": boards[0],
                                                "form": form,
-                                               "repos": repos})
+                                               "repos": repos,
+                                               "filtstring": filtstring})
   add_never_cache_headers(ret)
   return ret 
 
@@ -221,7 +225,11 @@ def issues_repo_delete(request, board, repoid):
     add_never_cache_headers(ret)
     return ret 
   repo[0].delete()
-  ret = HttpResponseRedirect('/issueview/repos/'+board+"/")
+  filtstring = request.GET.get("filter","")
+  if len(filtstring):
+    ret = HttpResponseRedirect('/issueview/repos/'+board+"/"+"?filter="+filtstring)
+  else:
+    ret = HttpResponseRedirect('/issueview/repos/'+board+"/")
   add_never_cache_headers(ret)
   return ret 
  

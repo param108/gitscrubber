@@ -6,9 +6,9 @@ Repositories: {% if repos %}
 {% for repo in repos %}
 <span style="margin: 10px;"><b>{{repo.repository}} <b></span>
 {% endfor %}<br><br>
-<a style="margin-left:10px;" class="btn btn-default" href="/issueview/repos/{{board.board}}/">Edit Repos</a> <a style="margin-left:10px;" class="btn btn-default" href="/issueview/refresh/">Refresh</a>
+<a style="margin-left:10px;" class="btn btn-default" href="/issueview/repos/{{board.board}}/?filter={{filtstring}}">Edit Repos</a> <a style="margin-left:10px;" class="btn btn-default" href="/issueview/refresh/{{board.board}}/?filter={{filtstring}}">Refresh</a>
 {% else %}
-<a style="margin-left:10px;" class="btn btn-default" href="/issueview/repos/{{board.board}}/">Edit Repos</a>
+<a style="margin-left:10px;" class="btn btn-default" href="/issueview/repos/{{board.board}}/?filter={{filtstring}}">Edit Repos</a>
 {% endif %}
 <table style="margin-top:10px;" class="table table-striped">
 <tr>
