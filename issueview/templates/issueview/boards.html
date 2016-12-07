@@ -14,7 +14,7 @@
 </tr>
 {% for board in boards %}
 <tr>
-<td>{{board.board}}</td><td><a href="/issueview/board/edit/{{board.id}}/">Edit</a> <a href="/issueview/board/del/{{board.id}}/">Delete</a></td>
+<td><a class="link" href="/issueview/show/{{board.board}}/">{{board.board}}</a></td><td><a class="btn btn-info" href="/issueview/board/edit/{{board.id}}/">Edit</a> <a class="btn btn-danger" href="/issueview/board/del/{{board.id}}/">Delete</a></td>
 </tr>
 {% endfor %}
 </table>

@@ -164,23 +164,38 @@ def apply_filter(issues, filt):
   return issues
 
 @login_required(login_url=('/login/'))
-def issues_show(request):
+def issues_show(request, board):
   if request.method == "GET":
+    boards = Board.objects.filter(board=board).filter(user=request.user)
+    if len(boards) == 0:
+      ret = HttpResponseRedirect('/issueview/board/show/')
+      add_never_cache_headers(ret)
+      return ret 
+    repos = Repository.objects.filter(board__board=board).filter(board__user=request.user)
     filt = request.GET.get("filter","")
-    issue_list = Issue.objects.filter(user=request.user)
+    issue_list = Issue.objects.filter(board__board=board)
     if filt != "":
       issue_list = apply_filter(issue_list, str(filt))
     ret =  render(request, "issueview/list.html", { "issues":issue_list,
-                                                    "filtstring":str(filt) })
+                                                    "filtstring":str(filt),
+                                                    "repos": repos,
+                                                    "board": boards[0]})
     add_never_cache_headers(ret)
     return ret
 
 @login_required(login_url=('/login/'))
-def issues_repos(request):
+def issues_repos(request, board):
+  boards = Board.objects.filter(board=board).filter(user=request.user)
+  if len(boards) == 0: 
+    ret = HttpResponseRedirect('/issueview/board/show/')
+    add_never_cache_headers(ret)
+    return ret 
+
   if request.method == "GET":
-    repos = Repository.objects.filter(user = request.user)
+    repos = Repository.objects.filter(board__user = request.user).filter(board__board=board)
     form = Repoform()
-    ret = render(request,"issueview/repos.html",{"form": form,
+    ret = render(request,"issueview/repos.html",{"board": boards[0],
+                                                 "form": form,
                                                  "repos": repos})
     add_never_cache_headers(ret)
     return ret
@@ -188,24 +203,25 @@ def issues_repos(request):
   if form.is_valid():
     newrepo = Repository()
     newrepo.repository = form.cleaned_data["repository"]
-    newrepo.user = request.user
+    newrepo.board = boards[0]
     newrepo.save()
     form = Repoform()
-  repos = Repository.objects.filter(user = request.user)
-  ret = render(request,"issueview/repos.html",{"form": form,
+  repos = Repository.objects.filter(board__user = request.user)
+  ret = render(request,"issueview/repos.html",{"board": boards[0],
+                                               "form": form,
                                                "repos": repos})
   add_never_cache_headers(ret)
   return ret 
 
 @login_required(login_url=('/login/'))
-def issues_repo_delete(request, repoid):
-  repo = Repository.objects.filter(user=request.user).filter(pk=repoid)
+def issues_repo_delete(request, board, repoid):
+  repo = Repository.objects.filter(board__user=request.user).filter(pk=repoid)
   if len(repo) == 0:
-    ret = HttpResponseRedirect('/issueview/repos/')
+    ret = HttpResponseRedirect('/issueview/repos/'+board+"/")
     add_never_cache_headers(ret)
     return ret 
   repo[0].delete()
-  ret = HttpResponseRedirect('/issueview/repos/')
+  ret = HttpResponseRedirect('/issueview/repos/'+board+"/")
   add_never_cache_headers(ret)
   return ret 
  

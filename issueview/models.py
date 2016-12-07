@@ -23,7 +23,7 @@ class Issue(models.Model):
 
 class Repository(models.Model):
   board = models.ForeignKey(Board)
-  repository = models.CharField(max_length=100,unique=True)
+  repository = models.CharField(max_length=100)
 
 class ReadPermissions(models.Model):
   board = models.ForeignKey(Board)
