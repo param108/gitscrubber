@@ -1,11 +1,12 @@
 from django.shortcuts import render
 from django.http import HttpResponse,HttpResponseRedirect,JsonResponse,HttpResponseNotFound
-from models import Issue,Repository
+from models import Issue,Repository,Board
 from django.utils.cache import add_never_cache_headers
 import requests
 from django.contrib.auth.decorators import login_required
 from wobeissues import settings
-from forms import Repoform
+from forms import Repoform,Boardform
+import re
 
 GITHUB_USER = settings.GITHUB_USER
 GITHUB_PASSWORD = settings.GITHUB_PASSWORD
@@ -208,3 +209,83 @@ def issues_repo_delete(request, repoid):
   add_never_cache_headers(ret)
   return ret 
  
+valid_board_re = re.compile("[a-z0-9_]+$")
+def valid_board(board, user):
+  m = valid_board_re.match(board)
+  if not m:
+    return False
+  if len(m.group(0)) != len(board):
+    return False
+  boards = Board.objects.filter(user=user).filter(board=board)
+  if len(boards) == 0:
+    return True
+  return False
+
+@login_required(login_url=('/login/'))
+def show_board(request):
+  if request.method == "GET":
+    boards = Board.objects.filter(user = request.user)
+    form = Boardform()
+    ret = render(request,"issueview/boards.html",{"form": form,
+                                                 "boards": boards})
+    add_never_cache_headers(ret)
+    return ret
+  form = Boardform(request.POST)
+  if form.is_valid(): 
+    if valid_board(form.cleaned_data["board"],request.user):
+      board = Board()
+      board.board = form.cleaned_data["board"]
+      board.user = request.user
+      board.save()
+      form = Boardform()
+    else:
+      form.add_error(None,"board names should be unique and should only use small case digits, alphabet and underscore.")
+  boards = Board.objects.filter(user = request.user)
+  ret = render(request,"issueview/boards.html",{"form": form,
+                                               "boards": boards})
+  add_never_cache_headers(ret)
+  return ret 
+
+
+@login_required(login_url=('/login/'))
+def del_board(request, boardid):
+  boards = Board.objects.filter(user=request.user).filter(pk=boardid)
+  if len(boards) == 0:
+    ret = HttpResponseRedirect('/issueview/board/show/')
+    add_never_cache_headers(ret)
+    return ret 
+  boards[0].delete()
+  ret = HttpResponseRedirect('/issueview/board/show/')
+  add_never_cache_headers(ret)
+  return ret 
+
+@login_required(login_url=('/login/'))
+def edit_board(request, boardid):
+  boards = Board.objects.filter(user = request.user).filter(pk=boardid)
+  if len(boards) == 0:
+    ret = HttpResponseRedirect('/issueview/board/show/')
+    add_never_cache_headers(ret)
+    return ret 
+    
+  if request.method == "GET":
+    form = Boardform(initial={"board":boards[0].board})
+    ret = render(request,"issueview/board_edit.html",{"form": form, "board":boards[0]})
+    add_never_cache_headers(ret)
+    return ret
+  form = Boardform(request.POST)
+  if form.is_valid(): 
+    if boards[0].board == form.cleaned_data["board"] or valid_board(form.cleaned_data["board"],request.user):
+      board = boards[0]
+      board.board = form.cleaned_data["board"]
+      board.user = request.user
+      board.save()
+      ret = HttpResponseRedirect('/issueview/board/show/')
+      add_never_cache_headers(ret)
+      return ret 
+    else:
+      form.add_error(None,"board names should be unique and should only use small case digits, alphabet and underscore.")
+  ret = render(request,"issueview/board_edit.html",{"form": form, "board":boards[0]})
+  add_never_cache_headers(ret)
+  return ret 
+
+

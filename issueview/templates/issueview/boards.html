@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div>
+<h2>Boards<br><small>A list of your boards</small></h2>
+<form action="/issueview/board/show/" method="POST">
+<table>
+{{form.as_table}}
+<tr><td>{%csrf_token%}<input type="submit" value="Add" />
+</table>
+</form>
+<table style="margin-top:10px;" class="table table-striped">
+<tr>
+<th>Boards</th><th>actions</th>
+</tr>
+{% for board in boards %}
+<tr>
+<td>{{board.board}}</td><td><a href="/issueview/board/edit/{{board.id}}/">Edit</a> <a href="/issueview/board/del/{{board.id}}/">Delete</a></td>
+</tr>
+{% endfor %}
+</table>
+</div>
+{% endblock %}

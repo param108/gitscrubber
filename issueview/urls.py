@@ -17,8 +17,11 @@ from django.conf.urls import url
 import views
 urlpatterns = [
     url(r'^refresh/', views.issues_refresh),
-    url(r'^update/(?P<issueid>[0-9]+)/', views.issues_update),
-    url(r'^$', views.issues_show),
-    url(r'^repos/$', views.issues_repos),
-    url(r'^repos/delete/(?P<repoid>[0-9]+)/$', views.issues_repo_delete)
+    url(r'^update/(?P<board>[a-z_0-9]+)/(?P<issueid>[0-9]+)/', views.issues_update),
+    url(r'^show/(?P<board>[a-z_0-9]+)/$', views.issues_show),
+    url(r'^repos/(?P<board>[a-z_0-9]+)/$', views.issues_repos),
+    url(r'^repos/delete/(?P<board>[a-z_0-9]+)/(?P<repoid>[0-9]+)/$', views.issues_repo_delete),
+    url(r'^board/show/$', views.show_board),
+    url(r'^board/del/(?P<boardid>[0-9]+)/$', views.del_board),
+    url(r'^board/edit/(?P<boardid>[0-9]+)/$', views.edit_board)
 ]
